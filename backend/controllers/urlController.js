@@ -29,18 +29,64 @@ const redirectURL = async (req, res) => {
 
     try {
         // Find the original URL by the shortId
-        const urlDoc = await Url.findOne({ shortId: shortId });
+        const url = await Url.findOne({ shortId: shortId });
 
-        if (!urlDoc) {
+        if (!url) {
             return res.status(404).json({ msg: 'Short URL not found' });
         }
+        url.clicks += 1;
+        const userAgent = req.headers['user-agent'];
+        const device = userAgent.includes('Mobile') ? 'Mobile' : 'Desktop';
+        url.deviceBreakdown.set(device, (url.deviceBreakdown.get(device) || 0) + 1);
 
-        // Redirect to the original URL
-        return res.redirect(urlDoc.originalUrl);
+        const clickDetail = {
+            ipAddress: req.ip,  // You might need a middleware like 'request-ip' to capture IP
+            device: device,
+            browser: userAgent,  // Just for demo purposes, you could use more specific libraries for browsers
+            clickedAt: new Date(),
+          };
+          url.clickDetails.push(clickDetail);
+
+  await url.save();
+
+        res.redirect(url.originalUrl);
     } catch (err) {
         console.error(err);
         return res.status(500).json({ msg: 'Server error' });
     }
 };
 
-module.exports = { shortURL , redirectURL };
+const analytics = async (req, res) => {
+    try {
+        const  shortId  = req.params.shortId;  
+        // Get shortId from route parameters
+        //console.log("hello backend");
+
+        if (shortId) {
+            // Find a specific URL with the given shortId
+            //console.log("checking")
+            const url = await Url.findOne({ shortId });
+
+            if (!url) {
+                return res.status(404).json({ msg: 'Short URL not found' });
+            }
+            
+            // If the short URL is found, return the details
+            return res.json(url);  // Return the analytics for the specific shortId
+        }
+
+        // If no shortId is provided, return all URLs with their analytics
+        const urls = await Url.find();
+        console.log(urls);
+        res.json(urls);
+
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({ msg: 'Server error' });
+    }
+};
+
+
+  
+
+module.exports = { shortURL , redirectURL, analytics };
